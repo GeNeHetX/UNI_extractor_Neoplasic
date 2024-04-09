@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-neoplasic"
+version = "0.0.1"
+authors = [
+  { name="Beaufils Audrey", email="audrey1.beaufils@inserm.fr" },
+]
+maintainers = [
+  { name="Beaufils Audrey", email="audrey1.beaufils@inserm.fr"},
+  ]
+description = "Extract UNI features on neoplasic tiles in histological images"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: Free for non-commercial use",
+    "Operating System :: OS Independent",
+]
+
