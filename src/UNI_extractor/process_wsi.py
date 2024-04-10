@@ -106,7 +106,7 @@ def main(args):
         num_workers=args.num_workers,
         checkpoint_path = args.model_path
     )
-    with h5py.File(f'{args.temp_dir}/{slidename}_stroma.h5', 'w') as f:
+    with h5py.File(f'{args.temp_dir}/{slidename}_tumor.h5', 'w') as f:
         f['coords'] = tiles_coord["tumCells"]
         f['feats'] = features_tum
         f['type'] = 'tumor_cell'
