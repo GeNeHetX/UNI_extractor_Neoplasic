@@ -19,8 +19,11 @@ Then to install the required packages, you can use the following command:
 pip install -r requirements.txt
 ```
 
-## Usage
+### Getting model access
+Request access to the model weights from the Huggingface model page at: https://huggingface.co/mahmoodlab/UNI.
 
+## Usage
+### Extract neoplasic features
 To use the model, you can use the following code:
 
 ```bash
@@ -40,13 +43,37 @@ Where:
 - `--pred_threshold` is the threshold to use for the prediction of neoplasic tiles. By default, it is set to 0.35.
 - `--comp_threshold` is the threshold to use for the prediction of tumor cell tiles. By default, it is set to 0.5.
 
-<!-- include the image in test folder -->
+
 For example, you can use the following command to predict a WSI:
 
 ```bash
- python3.12 src/pacpaint_neo/process_wsi.py --temp_dir data/ --wsi data/Cas02.svs --model_path data/pytorch_model.bin --pred_tiles data/tile_scores.csv --device cuda:0
+ python3.12 src/UNI_extractor/process_wsi.py --temp_dir data/ --wsi data/Cas02.svs --model_path data/pytorch_model.bin --pred_tiles data/tile_scores.csv --device cuda:0
 
 ```
+### Concatenate tumor and stroma features into one file
+```bash
+usage: python concat_tumor_stroma.py STROMA_FEATURES TUMOR_FEATURES
+```
+For example, you can use the following command to concat features:
+
+```bash
+ python3.12 src/UNI_extractor/concat_tumor_stroma.py XXX003_stroma.h5 XXX003_tumor.h5
+
+```
+
+
+### Display and save heatmap results
+```bash
+ 
+ usage python display_results.py [-h] --pred_csv PRED_CSV --path_wsi PATH_WSI --neo_threshold NEO_THRESHOLD --tumor_threshold TUMOR_THRESHOLD --out_dir OUT_DIR --display 
+```
+Where:
+- `--pred_csv` is the path to the `tiles_scores.csv`PACpAInt output. 
+- `--path_wsi` is the path to the WSI. It accepts ".svs", ".ndpi" and ".qptiff" files. 
+- `--neo_threshold` is the threshold to use for the prediction of neoplasic tiles. By default, it is set to 0.35.
+- `--tumor_threshold` is the threshold to use for the prediction of tumor cell tiles. By default, it is set to 0.5.
+- `--out_dir` is the path to save output results
+- `--display` is a flag to display the prediction in a separate window
 
 
 
