@@ -14,8 +14,7 @@ else:
 from display_wsi import display_wsi_results
 from extract_tiles import filter_tiles
 from extract_features import extract_features
-from get_neo_preds import get_neo_preds
-from get_comp_preds import get_comp_preds
+
 
 from pathlib import Path
 from torch import device
