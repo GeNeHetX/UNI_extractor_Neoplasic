@@ -69,10 +69,10 @@ def filter_tiles(path_svs, pred_path, pred_threshold, pred_comp):
     tumor =  predictions[predictions["pred_tumor"]> pred_threshold]
     stroma = tumor[tumor["pred_tumor_cell"] < pred_comp]
     print(f"Finding {stroma.shape[0]} stroma tiles")
-    stroma_tiles = stroma[["z","x","y"]].to_numpy()
+    stroma_tiles = stroma[["z","x","y","pred_tumor","pred_tumor_cell"]].to_numpy()
     tumorCell = tumor[tumor["pred_tumor_cell"] > pred_comp]
     print(f"Finding {tumorCell.shape[0]} tumoral cell tiles")
-    tumor_tiles = tumorCell[["z","x","y"]].to_numpy()
+    tumor_tiles = tumorCell[["z","x","y","pred_tumor","pred_tumor_cell"]].to_numpy()
 
 
     return {'stroma': stroma_tiles, 'tumCells': tumor_tiles}
