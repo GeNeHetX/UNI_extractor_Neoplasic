@@ -11,7 +11,7 @@ if hasattr(os, "add_dll_directory"):
 else:
     import openslide
 
-from display_wsi import display_wsi_results
+from display_results import display_wsi_results
 from extract_tiles import filter_tiles
 from extract_features import extract_features
 
