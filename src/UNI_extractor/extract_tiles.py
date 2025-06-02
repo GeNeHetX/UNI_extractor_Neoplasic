@@ -1,0 +1,142 @@
+import numpy as np
+from tqdm import tqdm
+from openslide.deepzoom import DeepZoomGenerator
+from torch.utils.data import Dataset
+from skimage.morphology import disk, binary_closing
+from scipy.ndimage import binary_fill_holes
+from pathlib import Path
+import os
+import pandas as pd 
+
+
+import openslide
+
+
+class TilesWhiteDataset(Dataset):
+    def __init__(
+        self,
+        slide: openslide.OpenSlide,
+        tile_size: int = 224,
+    ) -> None:
+        self.slide = slide
+        file_extension = Path(self.slide._filename).suffix
+        if file_extension == ".svs":
+            try:
+                self.magnification = int(self.slide.properties["openslide.objective-power"])
+            except:
+                if float(self.slide.properties["openslide.mpp-x"])>0.3:
+                    self.magnification = 20
+                else:
+                    self.magnification = 40
+        elif file_extension == ".qptiff":
+            r = (
+                ET.fromstring(slide.properties["openslide.comment"])
+                .find("ScanProfile")
+                .find("root")
+                .find("ScanResolution")
+            )
+            self.magnification = int(r.find("Magnification").text)
+        elif file_extension == ".ndpi":
+            self.magnification = int(self.slide.properties["openslide.objective-power"])
+        else:
+            raise ValueError(f"File extension {file_extension} not supported")
+        self.dz = DeepZoomGenerator(slide, tile_size=tile_size, overlap=0)
+        # We want the second highest level so as to have 112 microns tiles / 0.5 microns per pixel
+        if self.magnification == 20:
+            self.level = self.dz.level_count - 1
+        elif self.magnification == 40:
+            self.level = self.dz.level_count - 2
+        else:
+            raise ValueError(f"Objective power {self.magnification}x not supported")
+        self.h, self.w = self.dz.level_dimensions[self.level]
+        self.h_tile, self.w_tile = self.dz.level_tiles[self.level]
+        # Get rid of the last row and column because they can't fit a full tile usually
+        self.h_tile -= 1
+        self.w_tile -= 1
+        self.z = self.level
+
+    def idx_to_ij(self, item: int):
+        return np.unravel_index(item, (self.h_tile, self.w_tile))
+
+    def __len__(self) -> int:
+        return self.h_tile * self.w_tile
+
+
+# def filter_tiles(path_svs, pred_path, pred_threshold, pred_comp):
+#     tile_size = 224
+#     predictions = pd.read_csv(pred_path)
+
+#     tumor =  predictions[predictions["pred_tumor"]> pred_threshold]
+#     stroma = tumor[tumor["pred_tumor_cell"] < pred_comp]
+#     print(f"Finding {stroma.shape[0]} stroma tiles")
+#     stroma_tiles = stroma[["z","x","y","pred_tumor","pred_tumor_cell"]].to_numpy()
+#     tumorCell = tumor[tumor["pred_tumor_cell"] > pred_comp]
+#     print(f"Finding {tumorCell.shape[0]} tumoral cell tiles")
+#     tumor_tiles = tumorCell[["z","x","y","pred_tumor","pred_tumor_cell"]].to_numpy()
+
+    # return {'stroma': stroma_tiles, 'tumCells': tumor_tiles}
+def is_white_tile(tile, white_thresh=220, white_ratio=0.85):
+    return (tile.mean(axis=2) > white_thresh).sum() / tile.size > white_ratio
+
+# def filter_whites(path_svs, folder_path):
+def filter_whites(path_svs):
+    tile_size = 224
+    print(str(path_svs))
+    slide = openslide.OpenSlide('./'+str(path_svs))
+    slide_dt = TilesWhiteDataset(slide, tile_size=tile_size)
+
+    # First segment the slide
+    img_pil = slide.get_thumbnail((10000, 10000))
+    img = np.array(img_pil)
+    tresh = 220
+    mask = img.mean(axis=2) < tresh
+    # closed = binary_closing(mask, disk(3))
+    # filled = binary_fill_holes(closed, structure=np.ones((15, 15)))
+    # final_mask = binary_closing(filled, disk(3))
+    
+    # final_mask = closed  # Don't fill holes
+    final_mask = binary_closing(mask, disk(3))
+
+    # Get various dimensions
+    h_thumb, w_thumb = img.shape[:2]
+    w_slide, h_slide = slide.dimensions
+    z = slide_dt.z
+    if slide_dt.magnification == 20:
+        w_slide, h_slide = w_slide, h_slide
+    elif slide_dt.magnification == 40:
+        w_slide, h_slide = w_slide // 2, h_slide // 2
+    w_ratio = w_thumb / w_slide
+    h_ratio = h_thumb / h_slide
+    w_ratio, h_ratio
+
+    all_tiles_coord = [[z, k, i, j] for k, i, j in zip(range(len(slide_dt)), *slide_dt.idx_to_ij(range(len(slide_dt))))]
+    all_tiles_coord = np.array(all_tiles_coord)
+    # Get the coordinates of the tiles in the thumbnail
+    coord_thumb = np.zeros((all_tiles_coord.shape[0], 4, 2), dtype=np.int32)
+    for k in tqdm(range(all_tiles_coord.shape[0])):
+        # Convert tile adress to pixel coordinates in the full resolution image
+        i, j = all_tiles_coord[k, 2] * tile_size, all_tiles_coord[k, 3] * tile_size
+        corners = np.array([[i, j], [i + tile_size, j], [i, j + tile_size], [i + tile_size, j + tile_size]]).astype(
+            np.float32
+        )
+        # Map the coordinates of the pixels i,j to the coordinates on the thumbnail
+        corners[:, 0] *= h_ratio
+        corners[:, 1] *= w_ratio
+        coord_thumb[k] = np.round(corners).astype(np.int32)
+
+    coord_thumb[:, :, 0] = np.clip(coord_thumb[:, :, 0], 0, w_thumb - 1)
+    coord_thumb[:, :, 1] = np.clip(coord_thumb[:, :, 1], 0, h_thumb - 1)
+
+    # We keep the tile if at least one of its corner is inside the mask
+    valid_tiles_idx = final_mask[coord_thumb[:, :, 1], coord_thumb[:, :, 0]].sum(axis=1) > 1
+    tiles_coord = all_tiles_coord[valid_tiles_idx]
+
+    # slide_name = Path(path_svs).stem
+    # export_path = folder_path / f"{slide_name}" / "tiles_coord.npy"
+    # export_path.parent.mkdir(parents=True, exist_ok=True)
+    # np.save(export_path, tiles_coord)
+
+    # print("Finished process for slide", Path(path_svs).stem)
+    # print("Exported tiles coordinates to", export_path)
+
+    return tiles_coord
