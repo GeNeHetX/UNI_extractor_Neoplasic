@@ -82,7 +82,7 @@ def is_white_tile(tile, white_thresh=220, white_ratio=0.85):
 def filter_whites(path_svs):
     tile_size = 224
     print(str(path_svs))
-    slide = openslide.OpenSlide('./'+str(path_svs))
+    slide = openslide.OpenSlide(str(path_svs))
     slide_dt = TilesWhiteDataset(slide, tile_size=tile_size)
 
     # First segment the slide
